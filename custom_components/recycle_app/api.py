@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from requests import Session
 import re
+from homeassistant.util import location
 
 from custom_components.recycle_app.const import COLLECTION_TYPES
 
@@ -143,6 +144,26 @@ class FostPlusApi:
                 result[fraction_id] = collection_date
 
         return result
+    
+    def get_recycling_parks(self, zip_code_id: str, longitude: float, latitude: float, language: str, size: int = 100) -> dict[str, tuple[bool, str]]: #{name: (isOpen, openingHours)}
+        result = {}
+        EMPTY_DICT = {}
+        current_distance = None
+        parks: array[dict] = self.__get(
+            f'collection-points/recycling-parks?zipcode={zip_code_id}&longitude={longitude}&latitude={latitude}&language={language}&size={size}')["items"]
+        for item in parks:            
+            if item.get("exception", EMPTY_DICT).get("replacedBy", None):
+                continue
+            if not item.get("active", True):
+                continue
+            if item.get("delete", False):
+                continue
+            park_distance = location.distance(item.get("latitude", None), item.get("longitude", None), latitude, longitude)
+            if current_distance == None or park_distance < current_distance:
+                current_distance = park_distance
+                nearest = item
+        
+        return nearest
 
 
 class FostPlusApiException(Exception):
